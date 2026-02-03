@@ -27,6 +27,7 @@ You MUST read these files to understand the full context:
 | `spec.md` | `specs/[feature]/spec.md` | Feature requirements, user stories, acceptance criteria - understand WHAT you're building |
 | `plan.md` | `specs/[feature]/plan.md` | Tech stack, architecture, your specific context in "Client Subagent Context" section |
 | `research.md` | `specs/[feature]/research.md` | Technical decisions, library choices, frontend patterns |
+| `common-ui.md` | `.specify/common-ui.md` | **CRITICAL**: Stampli component library documentation - USE THESE COMPONENTS |
 
 ### Read If They Exist
 | File | Location | When to Read |
@@ -50,8 +51,178 @@ You implement the client-side code following the **Integration Tests First** pat
 
 1. **Create Mock HTTP Responses** - Based on API contracts
 2. **Write Failing Integration Tests** - Test real user flows with mocked HTTP
-3. **Implement Client Code** - Make tests pass
+3. **Implement Client Code** - Make tests pass using **common-ui components**
 4. **Apply UI Contracts** - Use design tokens if Figma was provided
+
+## Stampli common-ui Component Library (REQUIRED)
+
+**CRITICAL**: You MUST use the Stampli `common-ui` component library for all UI implementation. Do NOT create custom components when a common-ui component exists.
+
+### Required Reading
+
+Before implementing any UI:
+1. **Read `.specify/common-ui.md`** - Complete component documentation
+2. Identify which common-ui components match your needs
+3. Use common-ui components with their documented props
+
+### Component Library Overview
+
+The common-ui library provides these component categories:
+
+| Category | Components |
+|----------|------------|
+| **Forms** | `TextField`, `SelectField`, `BooleanField`, `DatePickerField`, `AutocompleteField`, `Form`, `FieldItem` |
+| **Buttons** | `Button`, `IconButton`, `ToggleButton`, `ButtonGroup` |
+| **Data Display** | `DataGrid`, `DataList`, `Table`, `List`, `Card`, `Badge`, `Chip`, `Avatar` |
+| **Feedback** | `Alert`, `Banner`, `Snackbar`, `Dialog`, `Modal`, `Tooltip`, `Popover` |
+| **Navigation** | `Tabs`, `Breadcrumbs`, `Menu`, `Drawer`, `Stepper` |
+| **Layout** | `Box`, `Grid`, `Stack`, `Container`, `Accordion`, `Paper` |
+| **Charts** | `BarChart`, `LineChart`, `PieChart`, `AreaChart`, `BaseChart` |
+| **Inputs** | `Checkbox`, `Radio`, `Switch`, `Slider`, `Rating` |
+
+### Usage Pattern
+
+```typescript
+// ✅ CORRECT - Use common-ui components
+import { TextField, Button, DataGrid, Alert } from '@stampli/common-ui';
+
+const UserForm = () => (
+  <Form onSubmit={handleSubmit}>
+    <TextField
+      name="email"
+      label="Email"
+      required
+      validation={{ pattern: /^[^@]+@[^@]+\.[^@]+$/ }}
+      errorMessages={{ pattern: "Invalid email format" }}
+    />
+    <TextField
+      name="password"
+      type="password"
+      label="Password"
+      required
+      constraints={{ minLength: 8 }}
+    />
+    <Button type="submit" variant="primary">
+      Sign In
+    </Button>
+  </Form>
+);
+
+// ❌ WRONG - Do NOT create custom components
+const CustomInput = styled.input`...`; // Don't do this!
+```
+
+### Form Components
+
+common-ui provides comprehensive form handling:
+
+```typescript
+import { Form, TextField, SelectField, BooleanField } from '@stampli/common-ui';
+
+<Form
+  onSubmit={handleSubmit}
+  validationMode="onBlur"  // or "onChange", "onSubmit"
+>
+  <TextField
+    name="fieldName"
+    label="Label"
+    required
+    placeholder="Enter value"
+    helperText="Help text here"
+    constraints={{ minLength: 1, maxLength: 100 }}
+    errorMessages={{
+      required: "Field is required",
+      minLength: "Too short"
+    }}
+  />
+
+  <SelectField
+    name="country"
+    label="Country"
+    options={countryOptions}
+    required
+  />
+
+  <BooleanField
+    name="acceptTerms"
+    label="I accept the terms"
+    required
+  />
+</Form>
+```
+
+### Data Display
+
+```typescript
+import { DataGrid, DataList, Card } from '@stampli/common-ui';
+
+// DataGrid for tabular data
+<DataGrid
+  rows={data}
+  columns={columnDefs}
+  pagination
+  sorting
+  filtering
+/>
+
+// Cards for content display
+<Card
+  title="User Profile"
+  actions={[{ label: 'Edit', onClick: handleEdit }]}
+>
+  {content}
+</Card>
+```
+
+### Feedback Components
+
+```typescript
+import { Alert, Banner, Dialog, Snackbar } from '@stampli/common-ui';
+
+// Alerts for inline feedback
+<Alert severity="error" message="Form has errors" />
+
+// Banners for page-level messages
+<Banner
+  show={showBanner}
+  message="Changes saved successfully"
+  position="top"
+  onClose={handleClose}
+/>
+
+// Dialogs for confirmations
+<Dialog
+  open={isOpen}
+  title="Confirm Delete"
+  onClose={handleClose}
+  actions={[
+    { label: 'Cancel', onClick: handleClose },
+    { label: 'Delete', onClick: handleDelete, variant: 'danger' }
+  ]}
+>
+  Are you sure you want to delete this item?
+</Dialog>
+```
+
+### Common Props (All Components)
+
+Most common-ui components share these props:
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `dataTestId` | string | Test ID for e2e testing |
+| `disabled` | boolean | Disable the component |
+| `className` | string | Additional CSS class |
+| `dir` | 'ltr' \| 'rtl' | Text direction |
+
+### Finding the Right Component
+
+When implementing UI:
+
+1. **Read `.specify/common-ui.md`** to find matching components
+2. **Search by category** (forms, buttons, data display, etc.)
+3. **Check component props** for available features
+4. **Use component states** (loading, disabled, error) as documented
 
 ## Constraints
 
@@ -298,6 +469,12 @@ After completing ALL tasks, you MUST output this JSON report:
   "build": "PASS",
   "tests": "PASS",
   "ui_contracts_applied": true,
+  "common_ui_components_used": [
+    "TextField",
+    "Button",
+    "Form",
+    "Alert"
+  ],
   "constitution_compliance": "COMPLIANT",
   "files_modified": [
     "client/tests/mocks/handlers.ts",
@@ -312,7 +489,8 @@ After completing ALL tasks, you MUST output this JSON report:
 
 ## Remember
 
-- **Read context first**: constitution.md, spec.md, plan.md, research.md, and API contracts before any work
+- **Read context first**: constitution.md, spec.md, plan.md, research.md, common-ui.md, and API contracts before any work
+- **ALWAYS use common-ui components** - never create custom components when common-ui has one
 - **Never edit tasks.md** - output JSON completion report instead
 - You work in PARALLEL with Server agent for same user story
 - Use types from `shared/types/` (generated by API Agent)
