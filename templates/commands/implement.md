@@ -204,6 +204,38 @@ After completing all tasks, output this JSON report:
 - All [SRV] [US#] tasks in completed arrays
 - Report: "User Story [US#] complete"
 
+#### 6c. Environment Validation Checkpoint
+
+After each user story completes, spawn the Environment Validation Agent:
+
+```bash
+claude --print "Validate environment for User Story [US#]
+
+Context from plan.md:
+- Server Start Command: [from plan.md]
+- Client Start Command: [from plan.md]
+- Server Port: [from plan.md]
+- Client Port: [from plan.md]
+
+Scenarios to validate from quickstart.md:
+[list relevant scenarios for this user story]
+
+IMPORTANT:
+- Run servers in BACKGROUND (do not block)
+- Use TIMEOUTS for all commands
+- ALWAYS clean up processes when done
+- You have FULL AUTONOMY to fix any issues found
+
+Output JSON completion report when done." \
+       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+**Orchestrator Action**: Parse the JSON report:
+- If `status: "PASS"` → proceed to next user story
+- If `status: "FAIL"` → halt and report issues
+- Log any `fixes_applied` for the completion report
+
 ### Step 7: Execute [SHARED] Polish Tasks
 
 Execute polish tasks **directly** (no subagent needed):
@@ -213,16 +245,43 @@ For each task in SHARED_POLISH_TASKS:
 2. Mark task as complete [X] in tasks.md
 3. Report progress
 
-### Step 8: Final Validation and Report
+### Step 8: Final Environment Validation
+
+Before reporting completion, run final environment validation:
+
+```bash
+claude --print "Final environment validation for feature [FEATURE_NAME]
+
+Context from plan.md:
+- Server Start Command: [from plan.md]
+- Client Start Command: [from plan.md]
+- All ports and endpoints
+
+Run ALL scenarios from quickstart.md to verify complete system works.
+
+IMPORTANT:
+- Run servers in BACKGROUND (do not block)
+- Use TIMEOUTS for all commands
+- ALWAYS clean up processes when done
+- You have FULL AUTONOMY to fix any issues found
+
+This is the FINAL validation before deployment.
+Output JSON completion report when done." \
+       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+**If validation fails**: Halt and report - do not mark implementation as complete.
+
+### Step 9: Final Report
 
 1. **Verify all tasks complete**:
    - Scan tasks.md for any remaining `[ ]` unchecked tasks
    - If incomplete tasks found, report which tasks failed
 
-2. **Run full validation** (if command specified in plan.md):
-   ```bash
-   [Full Validation command from plan.md]
-   ```
+2. **Verify all validations passed**:
+   - All user story checkpoints: PASS
+   - Final environment validation: PASS
 
 3. **Generate completion report**:
    ```
@@ -236,20 +295,28 @@ For each task in SHARED_POLISH_TASKS:
    ✓ Setup ([SHARED] tasks)
    ✓ API Contracts ([API] tasks)
    ✓ User Story 1 ([CLI] + [SRV] tasks)
+     └── Environment Validation: PASS
    ✓ User Story 2 ([CLI] + [SRV] tasks)
+     └── Environment Validation: PASS
    ...
    ✓ Polish ([SHARED] tasks)
+   ✓ Final Environment Validation: PASS
 
    Subagents Spawned:
    - Checklist Agent: [PASS/FAIL/SKIPPED]
    - API Agent: [X] tasks completed
    - Client Agent: [X] tasks completed (per story)
    - Server Agent: [X] tasks completed (per story)
+   - Environment Validation Agent: [X] checkpoints passed
 
-   Validation:
-   - Build: [PASS/FAIL]
-   - Tests: [PASS/FAIL]
-   - Contracts: [PASS/FAIL]
+   Environment Validation:
+   - Server Starts: PASS
+   - API Endpoints: PASS
+   - Client Builds: PASS
+   - Integration: PASS
+
+   Fixes Applied by Environment Validation:
+   - [list any fixes applied during validation]
 
    ═══════════════════════════════════════════════════════════
    ```
@@ -267,7 +334,9 @@ For each task in SHARED_POLISH_TASKS:
 3. For each User Story:
    ├── [CLI] tasks → Client subagent ─┐
    └── [SRV] tasks → Server subagent ─┴── PARALLEL, wait for both
+   └── Environment Validation → verify real system works (can fix issues)
 4. [SHARED] Polish → direct execution
+5. Final Environment Validation → full system check before completion
 ```
 
 ### Subagent Constraints
@@ -329,6 +398,7 @@ claude --print "[PROMPT]" \
 | api-agent | .specify/agents/api-agent.md | API contracts, type generation |
 | client-agent | .specify/agents/client-agent.md | Frontend, integration tests |
 | server-agent | .specify/agents/server-agent.md | Backend, TDD unit tests |
+| environment-validation-agent | .specify/agents/environment-validation-agent.md | Verify real system works, fix issues |
 
 ---
 
