@@ -156,7 +156,10 @@ contracts/
     ├── components/           # Component specifications
     │   ├── button.json
     │   ├── card.json
-    │   └── form-input.json
+    │   └── input.json        # Form input states and styling
+    ├── forms/                # Form specifications (fields, validation, behavior)
+    │   ├── login-form.json
+    │   └── user-form.json
     ├── screens/              # Screen layout specifications
     │   ├── user-list.json
     │   └── user-detail.json
@@ -175,18 +178,23 @@ These contracts are the source of truth for visual implementation.
   "figmaFile": "[file_key if from Figma]",
   "colors": {
     "primary": { "value": "#1a73e8", "usage": "Primary actions, links" },
-    "error": { "value": "#d93025", "usage": "Error states, destructive actions" }
+    "error": { "value": "#d93025", "usage": "Error states, destructive actions" },
+    "success": { "value": "#1e8e3e", "usage": "Success states, valid inputs" },
+    "warning": { "value": "#f9ab00", "usage": "Warning states" }
   },
   "typography": {
     "heading-1": { "fontFamily": "Inter", "fontSize": "32px", "fontWeight": 700 },
-    "body": { "fontFamily": "Inter", "fontSize": "16px", "fontWeight": 400 }
+    "body": { "fontFamily": "Inter", "fontSize": "16px", "fontWeight": 400 },
+    "label": { "fontFamily": "Inter", "fontSize": "14px", "fontWeight": 500 },
+    "error": { "fontFamily": "Inter", "fontSize": "12px", "fontWeight": 400 }
   },
   "spacing": {
     "xs": "4px", "sm": "8px", "md": "16px", "lg": "24px", "xl": "32px"
   },
   "effects": {
     "shadow-sm": "0 1px 2px rgba(0,0,0,0.1)",
-    "shadow-md": "0 4px 6px rgba(0,0,0,0.1)"
+    "shadow-md": "0 4px 6px rgba(0,0,0,0.1)",
+    "focus-ring": "0 0 0 2px rgba(26,115,232,0.4)"
   },
   "borderRadius": {
     "sm": "4px", "md": "8px", "lg": "16px", "full": "9999px"
@@ -207,13 +215,111 @@ These contracts are the source of truth for visual implementation.
     "default": {},
     "hover": { "opacity": 0.9 },
     "active": { "transform": "scale(0.98)" },
-    "disabled": { "opacity": 0.5, "cursor": "not-allowed" }
+    "disabled": { "opacity": 0.5, "cursor": "not-allowed" },
+    "loading": { "opacity": 0.7, "cursor": "wait" }
   },
   "sizes": {
     "sm": { "padding": "spacing.xs spacing.sm", "fontSize": "14px" },
     "md": { "padding": "spacing.sm spacing.md", "fontSize": "16px" },
     "lg": { "padding": "spacing.md spacing.lg", "fontSize": "18px" }
   }
+}
+```
+
+#### Form Input Spec Example (components/input.json)
+```json
+{
+  "name": "Input",
+  "figmaNodeId": "[node_id if from Figma]",
+  "states": {
+    "default": {
+      "border": "1px solid #dadce0",
+      "background": "#ffffff"
+    },
+    "focused": {
+      "border": "2px solid colors.primary",
+      "boxShadow": "effects.focus-ring"
+    },
+    "filled": {
+      "border": "1px solid #dadce0"
+    },
+    "valid": {
+      "border": "1px solid colors.success",
+      "icon": "checkmark"
+    },
+    "invalid": {
+      "border": "1px solid colors.error",
+      "icon": "error",
+      "errorMessageColor": "colors.error"
+    },
+    "disabled": {
+      "background": "#f1f3f4",
+      "cursor": "not-allowed"
+    }
+  },
+  "elements": {
+    "label": { "typography": "label", "marginBottom": "spacing.xs" },
+    "helperText": { "typography": "body", "color": "#5f6368", "marginTop": "spacing.xs" },
+    "errorMessage": { "typography": "error", "color": "colors.error", "marginTop": "spacing.xs" },
+    "requiredIndicator": { "content": "*", "color": "colors.error" }
+  }
+}
+```
+
+#### Form Spec Example (forms/login-form.json)
+```json
+{
+  "name": "LoginForm",
+  "figmaNodeId": "[node_id if from Figma]",
+  "fields": {
+    "email": {
+      "type": "email",
+      "required": true,
+      "label": "Email address",
+      "placeholder": "Enter your email",
+      "constraints": {
+        "maxLength": 255
+      },
+      "validation": {
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$",
+        "validateOn": "blur"
+      },
+      "errorMessages": {
+        "required": "Email is required",
+        "pattern": "Please enter a valid email address"
+      }
+    },
+    "password": {
+      "type": "password",
+      "required": true,
+      "label": "Password",
+      "placeholder": "Enter your password",
+      "constraints": {
+        "minLength": 8,
+        "maxLength": 128
+      },
+      "validation": {
+        "rules": ["minLength", "maxLength"],
+        "validateOn": "blur"
+      },
+      "errorMessages": {
+        "required": "Password is required",
+        "minLength": "Password must be at least 8 characters"
+      }
+    }
+  },
+  "submitButton": {
+    "label": "Sign in",
+    "loadingLabel": "Signing in..."
+  },
+  "states": {
+    "pristine": { "submitEnabled": false },
+    "dirty": { "submitEnabled": true },
+    "submitting": { "submitEnabled": false, "fieldsDisabled": true, "showSpinner": true },
+    "success": { "action": "redirect", "target": "/dashboard" },
+    "error": { "showErrorBanner": true, "bannerMessage": "from-server" }
+  },
+  "dynamicBehavior": []
 }
 ```
 

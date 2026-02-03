@@ -176,6 +176,71 @@
 | [Card] | [Figma link] | [Layout, spacing, shadow] |
 | [Form Input] | [Figma link] | [States, validation styles] |
 
+### Form Specifications *(include if feature has forms)*
+
+<!--
+  Detailed form behavior specifications.
+  CRITICAL for proper implementation - forms are a major source of bugs.
+-->
+
+#### Form Fields
+
+| Field | Type | Required | Constraints | Validation | Error Message |
+|-------|------|----------|-------------|------------|---------------|
+| [Email] | email | Yes | max: 255 | Valid email format | "Please enter a valid email address" |
+| [Password] | password | Yes | min: 8, max: 128 | 1 uppercase, 1 number, 1 special | "Password must contain..." |
+| [Name] | text | Yes | min: 1, max: 100 | Non-empty | "Name is required" |
+| [Phone] | tel | No | pattern: [regex] | Valid phone format | "Please enter a valid phone number" |
+
+#### Field States
+
+| State | Visual Treatment | When Applied |
+|-------|------------------|--------------|
+| Default/Empty | [placeholder text, border color] | Initial render |
+| Focused | [border color, shadow] | User clicks/tabs into field |
+| Filled | [text color, border] | Field has value |
+| Valid | [success color, checkmark icon] | Validation passes |
+| Invalid/Error | [error color, error icon, error message below] | Validation fails |
+| Disabled | [gray background, no interaction] | Field not editable |
+| Read-only | [no border, text only] | Display only |
+
+#### Form-Level States
+
+| State | Visual Treatment | Behavior |
+|-------|------------------|----------|
+| Pristine | Submit button [enabled/disabled] | No fields touched yet |
+| Dirty | [unsaved changes indicator?] | At least one field modified |
+| Submitting | [loading spinner, disabled inputs, disabled button] | Form being submitted |
+| Submit Success | [success message, redirect?] | Submission completed |
+| Submit Error | [error banner, field errors highlighted] | Submission failed |
+
+#### Validation Behavior
+
+- **When to validate**: [on-blur / on-change / on-submit]
+- **Real-time validation**: [Yes/No - which fields?]
+- **Show errors**: [immediately / on-blur / on-submit]
+- **Clear errors**: [on-focus / on-change / manual]
+
+#### Dynamic Behavior
+
+<!--
+  Conditional logic, dependent fields, auto-formatting
+-->
+
+| Condition | Action |
+|-----------|--------|
+| [When Country = "US"] | [Show State dropdown with US states] |
+| [When "Other" selected] | [Show "Please specify" text field] |
+| [When Password field focused] | [Show password requirements checklist] |
+
+#### Auto-Formatting
+
+| Field | Format | Example |
+|-------|--------|---------|
+| [Phone] | (###) ###-#### | (555) 123-4567 |
+| [Credit Card] | #### #### #### #### | 4111 1111 1111 1111 |
+| [Date] | MM/DD/YYYY | 12/31/2024 |
+
 ### Responsive Breakpoints
 
 <!--

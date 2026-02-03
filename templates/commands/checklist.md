@@ -251,6 +251,26 @@ Sample items (testing the requirements, NOT the implementation):
 - "Are error state visuals defined? [Coverage, Gap]"
 - "Are empty state visuals defined? [Coverage, Gap]"
 
+**Form Requirements Quality:** `forms.md`
+
+Sample items (testing the requirements, NOT the implementation):
+
+- "Are all form fields documented with type and constraints? [Completeness]"
+- "Is required vs optional clearly specified for each field? [Clarity]"
+- "Are validation rules defined with specific patterns/limits? [Completeness]"
+- "Are error messages specified for each validation failure? [Coverage]"
+- "Is validation timing specified (on-blur, on-change, on-submit)? [Clarity]"
+- "Are all field states defined (empty, focused, valid, invalid, disabled)? [Coverage]"
+- "Are form-level states documented (pristine, dirty, submitting, success, error)? [Completeness]"
+- "Is submit button behavior specified for each form state? [Clarity]"
+- "Are loading/submitting indicators defined? [Coverage, Gap]"
+- "Is success behavior specified (message, redirect, reset)? [Completeness]"
+- "Is error handling specified (inline errors, banner, field highlighting)? [Coverage]"
+- "Are dynamic behaviors documented (conditional fields, dependent dropdowns)? [Coverage, Gap]"
+- "Are auto-formatting rules specified (phone, date, currency)? [Clarity, Gap]"
+- "Are character counters specified for limited fields? [Coverage, Gap]"
+- "Are helper text requirements defined for complex fields? [Completeness, Gap]"
+
 **UX Requirements Quality:** `ux.md`
 
 Sample items (testing the requirements, NOT the implementation):
