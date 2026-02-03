@@ -101,7 +101,113 @@ Given that feature description, do this:
 
 5. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 
-6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+6. **Figma Design Extraction** (if Figma links detected in user input):
+
+   a. **Detect Figma Links**: Scan user input for Figma URLs matching patterns:
+      - `https://figma.com/file/...`
+      - `https://figma.com/design/...`
+      - `https://www.figma.com/file/...`
+
+   b. **Check MCP Availability**: Attempt to use Figma MCP tools:
+      ```
+      If figma_get_file tool is available:
+        MCP_AVAILABLE = true
+      Else:
+        MCP_AVAILABLE = false
+      ```
+
+   c. **If MCP_AVAILABLE = true** (Auto-extraction):
+
+      1. Create directories:
+         ```bash
+         mkdir -p FEATURE_DIR/designs
+         mkdir -p FEATURE_DIR/contracts/ui/components
+         mkdir -p FEATURE_DIR/contracts/ui/screens
+         ```
+
+      2. For each Figma link, extract:
+         - **File metadata**: `figma_get_file(file_key)` → Get file name, last modified
+         - **Styles**: `figma_get_styles(file_key)` → Extract color, text, effect styles
+         - **Components**: `figma_get_components(file_key)` → List component definitions
+         - **Specific nodes**: `figma_get_node(file_key, node_id)` → Get detailed node data
+
+      3. Generate design tokens file:
+         ```json
+         // FEATURE_DIR/contracts/ui/design-tokens.json
+         {
+           "source": "figma",
+           "figmaFile": "[file_key]",
+           "extractedAt": "[timestamp]",
+           "colors": {
+             "[style_name]": { "value": "#RRGGBB", "figmaStyleId": "S:xxx" }
+           },
+           "typography": {
+             "[style_name]": {
+               "fontFamily": "...",
+               "fontSize": "...",
+               "fontWeight": "...",
+               "lineHeight": "...",
+               "figmaStyleId": "S:xxx"
+             }
+           },
+           "effects": {
+             "[style_name]": { "type": "shadow|blur", "value": "...", "figmaStyleId": "S:xxx" }
+           },
+           "spacing": {
+             "note": "Extract from component auto-layout properties"
+           }
+         }
+         ```
+
+      4. For key screens/components, export images:
+         - Use `figma_export_image(file_key, node_id, format="png", scale=2)` if available
+         - Save to `FEATURE_DIR/designs/[node_name].png`
+
+      5. Generate component specs:
+         ```json
+         // FEATURE_DIR/contracts/ui/components/[component_name].json
+         {
+           "name": "[Component Name]",
+           "figmaNodeId": "[node_id]",
+           "figmaLink": "[direct link]",
+           "variants": ["default", "hover", "active", "disabled"],
+           "properties": {
+             "width": "...",
+             "height": "...",
+             "padding": "...",
+             "borderRadius": "..."
+           }
+         }
+         ```
+
+      6. Update spec.md "UI Design References" section with extracted data
+
+   d. **If MCP_AVAILABLE = false** (Manual capture):
+
+      1. Create directories:
+         ```bash
+         mkdir -p FEATURE_DIR/designs
+         ```
+
+      2. Populate "UI Design References" section in spec.md with:
+         - Figma links from user input
+         - Placeholder tables for manual completion
+         - Instructions for manual screenshot capture
+
+      3. Add note to spec:
+         ```markdown
+         > **Note**: Figma MCP was not available during spec creation.
+         > Please manually:
+         > 1. Export key screens to `designs/` directory
+         > 2. Document design tokens in the tables above
+         > 3. Or run `/speckit.specify` again with Figma MCP enabled
+         ```
+
+   e. **Report Figma extraction status**:
+      - If MCP used: "Extracted [N] design tokens, [M] components, [P] screenshots from Figma"
+      - If manual: "Figma links detected but MCP unavailable. Manual design documentation required."
+
+7. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
 
    a. **Create Spec Quality Checklist**: Generate a checklist file at `FEATURE_DIR/checklists/requirements.md` using the checklist template structure with these validation items:
 
@@ -148,7 +254,7 @@ Given that feature description, do this:
 
    c. **Handle Validation Results**:
 
-      - **If all items pass**: Mark checklist complete and proceed to step 6
+      - **If all items pass**: Mark checklist complete and proceed to step 8
 
       - **If items fail (excluding [NEEDS CLARIFICATION])**:
         1. List the failing items and specific issues
@@ -193,7 +299,7 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+8. Report completion with branch name, spec file path, checklist results, Figma extraction status, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

@@ -82,12 +82,20 @@ You **MUST** consider the user input before proceeding (if not empty).
    - spec.md: Feature requirements and scope
    - plan.md (if exists): Technical details, dependencies
    - tasks.md (if exists): Implementation tasks
+   - contracts/ui/ (if exists): UI design contracts from Figma
+   - designs/ (if exists): Screenshot references
 
    **Context Loading Strategy**:
    - Load only necessary portions relevant to active focus areas (avoid full-file dumping)
    - Prefer summarizing long sections into concise scenario/requirement bullets
    - Use progressive disclosure: add follow-on retrieval only if gaps detected
    - If source docs are large, generate interim summary items instead of embedding raw text
+
+   **UI-Specific Context** (when contracts/ui/ exists):
+   - If UI contracts exist, automatically include UI requirements quality as a focus area
+   - Load design-tokens.json to check token completeness
+   - Scan components/ directory to verify component specs exist
+   - Check for breakpoints.json if responsive requirements mentioned in spec
 
 5. **Generate checklist** - Create "Unit Tests for Requirements":
    - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
@@ -223,6 +231,25 @@ You **MUST** consider the user input before proceeding (if not empty).
 To avoid clutter, use descriptive types and clean up obsolete checklists when done.
 
 ## Example Checklist Types & Sample Items
+
+**UI Design Requirements Quality (when Figma provided):** `ui.md`
+
+Sample items (testing the requirements, NOT the implementation):
+
+- "Are all Figma links valid and accessible? [Completeness, Spec §UI-Design]"
+- "Are design tokens (colors, typography, spacing) fully documented? [Completeness]"
+- "Is each color token's usage context specified? [Clarity]"
+- "Are all component variants defined (states, sizes)? [Coverage]"
+- "Are component state transitions specified (hover, active, disabled)? [Completeness]"
+- "Are responsive breakpoints defined with specific widths? [Clarity]"
+- "Are layout changes at each breakpoint documented? [Coverage]"
+- "Do screenshots exist for all key screens? [Completeness]"
+- "Are interactive element specs consistent across components? [Consistency]"
+- "Is the spacing scale documented with all values? [Completeness]"
+- "Are animation/transition requirements specified? [Coverage, Gap]"
+- "Are loading state visuals defined? [Coverage, Gap]"
+- "Are error state visuals defined? [Coverage, Gap]"
+- "Are empty state visuals defined? [Coverage, Gap]"
 
 **UX Requirements Quality:** `ux.md`
 

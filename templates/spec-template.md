@@ -113,3 +113,89 @@
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
+## UI Design References *(include if Figma designs provided)*
+
+<!--
+  This section captures UI requirements from Figma designs.
+  If Figma MCP is available, design tokens and component specs are auto-extracted.
+  If not, manually document the key visual requirements here.
+
+  IMPORTANT: These references flow through to:
+  - plan.md (UI contracts structure)
+  - contracts/ui/ (design tokens, component specs)
+  - client agent (implementation reference)
+  - UI checklist (requirements validation)
+-->
+
+### Figma Source Files
+
+| Screen/Component | Figma Link | Node ID | Status |
+|------------------|------------|---------|--------|
+| [Screen Name] | [https://figma.com/file/xxx] | [node-id] | [Draft/Final] |
+| [Component Name] | [https://figma.com/file/xxx?node-id=123] | [node-id] | [Draft/Final] |
+
+### Design Token Requirements
+
+<!--
+  Key visual specifications that MUST be followed.
+  These will be extracted to contracts/ui/design-tokens.json during planning.
+-->
+
+**Colors**:
+- Primary: [color value or Figma style name]
+- Secondary: [color value]
+- Error/Warning/Success: [color values]
+- Background/Surface: [color values]
+
+**Typography**:
+- Headings: [font family, sizes, weights]
+- Body: [font family, sizes, weights]
+- Labels/Captions: [font family, sizes, weights]
+
+**Spacing**:
+- Component padding: [values]
+- Section margins: [values]
+- Grid/layout spacing: [values]
+
+**Effects**:
+- Shadows: [shadow specifications]
+- Border radius: [values]
+- Transitions: [animation specs if any]
+
+### Component Specifications
+
+<!--
+  Key components that have specific visual requirements.
+  Reference Figma frames/components for exact specifications.
+-->
+
+| Component | Figma Reference | Key Visual Requirements |
+|-----------|-----------------|------------------------|
+| [Button] | [Figma link] | [States: default, hover, active, disabled] |
+| [Card] | [Figma link] | [Layout, spacing, shadow] |
+| [Form Input] | [Figma link] | [States, validation styles] |
+
+### Responsive Breakpoints
+
+<!--
+  If designs include responsive variants, document breakpoints here.
+-->
+
+| Breakpoint | Width | Figma Frame | Key Layout Changes |
+|------------|-------|-------------|-------------------|
+| Mobile | < 768px | [Figma link] | [Layout description] |
+| Tablet | 768px - 1024px | [Figma link] | [Layout description] |
+| Desktop | > 1024px | [Figma link] | [Layout description] |
+
+### Design Screenshots
+
+<!--
+  Screenshots are stored in specs/[feature]/designs/
+  These are auto-captured if Figma MCP is available, or manually added.
+-->
+
+| Screen | Screenshot Path | Description |
+|--------|-----------------|-------------|
+| [Main View] | `./designs/main-view.png` | [Brief description] |
+| [Component States] | `./designs/component-states.png` | [All states documented] |
