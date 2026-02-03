@@ -74,7 +74,9 @@ specs/[###-feature]/
 ├── checklists/          # Quality checklists
 │   ├── requirements.md
 │   └── ui.md            # UI requirements checklist (if Figma provided)
-└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
+├── tasks-api.md         # API + Setup tasks (/speckit.tasks output)
+├── tasks-client.md      # Client tasks (/speckit.tasks output)
+└── tasks-server.md      # Server tasks (/speckit.tasks output)
 ```
 
 ### Source Code (repository root)
@@ -334,11 +336,22 @@ These contracts are the source of truth for visual implementation.
 
 ### Contract-First Workflow
 
-1. **Define contracts** in `contracts/api.yaml` (API Subagent)
-2. **Generate types** to `shared/types/` (API Subagent)
-3. **Client uses** generated types + mock responses for testing (Client Subagent)
-4. **Server implements** against generated types with TDD (Server Subagent)
-5. **Both validate** against contract tests
+```
+1. /speckit.implement api     → Define contracts, generate types
+2. /speckit.validate server   → Verify server can build with types
+3. [API phase complete - stop here]
+
+4a. Session A: /speckit.implement server  ─┐
+4b. Session B: /speckit.implement client  ─┴─ Can run in PARALLEL
+
+5a. /speckit.validate server  → Verify server works
+5b. /speckit.validate client  → Verify client works
+```
+
+**Why Separate Sessions?**
+- No race conditions on task files
+- Server and Client work on their own files
+- Can be done by different developers/terminals
 
 ## Complexity Tracking
 
@@ -354,10 +367,16 @@ These contracts are the source of truth for visual implementation.
 <!--
   This section provides context for specialized subagents during /speckit.implement.
   Each subagent reads this to understand tech stack and constraints.
+
+  IMPORTANT: Each agent type has its own task file:
+  - API Agent → tasks-api.md
+  - Client Agent → tasks-client.md
+  - Server Agent → tasks-server.md
 -->
 
 ### API Subagent Context
 
+- **Task File**: tasks-api.md
 - **Contract Location**: contracts/api.yaml
 - **Type Output**: shared/types/
 - **Validation Command**: [e.g., npm run validate:contracts]
@@ -365,6 +384,7 @@ These contracts are the source of truth for visual implementation.
 
 ### Client Subagent Context
 
+- **Task File**: tasks-client.md
 - **Source Location**: client/src/
 - **Test Location**: client/tests/
 - **Mock Location**: client/tests/mocks/
@@ -388,6 +408,7 @@ These contracts are the source of truth for visual implementation.
 
 ### Server Subagent Context
 
+- **Task File**: tasks-server.md
 - **Source Location**: server/src/
 - **Test Location**: server/tests/
 - **Build Command**: [from Build & Test Commands table]

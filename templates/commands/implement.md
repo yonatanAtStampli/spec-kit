@@ -1,8 +1,8 @@
 ---
-description: Orchestrator that coordinates specialized subagents to execute the implementation plan
+description: Execute implementation tasks for a specific agent type (api, server, or client)
 scripts:
-  sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
-  ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
+  sh: scripts/bash/check-prerequisites.sh --json --include-tasks
+  ps: scripts/powershell/check-prerequisites.ps1 -Json -IncludeTasks
 ---
 
 ## User Input
@@ -11,31 +11,112 @@ scripts:
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+## Agent Type Selection
 
-## Orchestrator Overview
+**REQUIRED**: You must specify exactly ONE agent type:
 
-This command acts as an **orchestrator** that coordinates specialized subagents to implement the feature. The orchestrator:
+| Argument | Task File | Agent | Description |
+|----------|-----------|-------|-------------|
+| `api` | `tasks-api.md` | api-agent | Setup + API contracts |
+| `server` | `tasks-server.md` | server-agent | Backend TDD implementation |
+| `client` | `tasks-client.md` | client-agent | Frontend integration tests first |
 
-1. Parses tasks.md and groups tasks by component marker ([API], [CLI], [SRV], [SHARED])
-2. Executes [SHARED] tasks directly
-3. Spawns subagents via Claude CLI for specialized work
-4. Enforces the API-first execution order
-5. Runs Client and Server subagents in parallel per user story
+**Examples**:
+- `/speckit.implement api` → Execute API tasks
+- `/speckit.implement server` → Execute Server tasks
+- `/speckit.implement client` → Execute Client tasks
+
+**INVALID** (do nothing and explain):
+- `/speckit.implement` → No agent specified
+- `/speckit.implement both` → Cannot run multiple agents
+- `/speckit.implement server client` → Cannot run multiple agents
+- `/speckit.implement all` → Cannot run multiple agents
 
 ## Outline
 
-### Step 1: Initialize and Parse Context
+### Step 1: Validate Arguments
+
+Parse `$ARGUMENTS` and validate:
+
+1. **Extract agent type** from arguments (case-insensitive: "api", "server", "client")
+2. **If no agent type specified**: Output error message and stop
+   ```
+   Error: Agent type required.
+
+   Usage: /speckit.implement <api|server|client>
+
+   Expected workflow:
+   1. /speckit.implement api     → First (required)
+   2. /speckit.implement server  → After API complete
+   3. /speckit.implement client  → After API complete (can run parallel with server)
+   ```
+3. **If multiple agents specified**: Output error message and stop
+   ```
+   Error: Only one agent type allowed per session.
+
+   To enable parallel work:
+   - Session 1: /speckit.implement server
+   - Session 2: /speckit.implement client
+
+   These can run in separate terminals simultaneously.
+   ```
+
+### Step 2: Initialize and Parse Context
 
 1. Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute.
 
-2. **Load implementation context**:
-   - **REQUIRED**: Read tasks.md for the complete task list with component markers
+2. **Determine task file based on agent type**:
+   - `api` → `FEATURE_DIR/tasks-api.md`
+   - `server` → `FEATURE_DIR/tasks-server.md`
+   - `client` → `FEATURE_DIR/tasks-client.md`
+
+3. **Verify task file exists**:
+   - If not found: "Error: [task file] not found. Run /speckit.tasks first."
+
+4. **Load implementation context**:
+   - **REQUIRED**: Read the task file for this agent
    - **REQUIRED**: Read plan.md for tech stack, build commands, and subagent context
    - **IF EXISTS**: Read data-model.md for entities and relationships
    - **IF EXISTS**: Read contracts/ for API specifications
 
-### Step 2: Verify Checklists (Spawn Checklist Subagent)
+### Step 3: Check Prerequisites (for server/client only)
+
+**For `server` or `client` agent types only**:
+
+⚠️ **HARD GATE: ALL API Tasks Must Be Complete**
+
+The API phase defines contracts for **ALL user stories** in the spec. This is not incremental - you cannot implement US1 client while US2 API is still pending.
+
+1. **Verify `tasks-api.md` exists** and **EVERY task is complete** (marked with `[X]`)
+2. **Scan for ANY incomplete tasks**:
+   - If even ONE task has `- [ ]` (unchecked), BLOCK execution
+   - This includes setup tasks, contracts for US1, US2, US3, etc., and type generation
+3. If ANY API tasks are incomplete:
+   ```
+   ═══════════════════════════════════════════════════════════════════════════════
+   ERROR: Cannot start [server/client] implementation
+   ═══════════════════════════════════════════════════════════════════════════════
+
+   ALL API tasks must be complete before ANY client or server work can begin.
+   This includes contracts for ALL user stories in the spec.
+
+   Incomplete API tasks found:
+   - [ ] T010 [US1] Define User endpoints in contracts/api.yaml
+   - [ ] T050 [US2] Define Order endpoints in contracts/api.yaml
+   - [ ] T080 Generate TypeScript types from contracts
+
+   Run: /speckit.implement api
+
+   Note: The API phase must define contracts for EVERY user story before
+   implementation can begin. This ensures Client and Server have complete
+   type definitions to work against.
+   ═══════════════════════════════════════════════════════════════════════════════
+   ```
+
+4. Verify `contracts/` directory exists with API schemas for all endpoints
+5. Verify `shared/types/` directory exists with generated types
+
+### Step 4: Verify Checklists (Optional)
 
 If `FEATURE_DIR/checklists/` exists:
 
@@ -45,47 +126,24 @@ claude --print "Verify all checklists in FEATURE_DIR/checklists/ and report stat
        --allowedTools "Read,Glob,Grep"
 ```
 
-**Checklist Subagent Returns**:
-- Status table with PASS/FAIL per checklist
-- Overall status: PASS (all complete) or FAIL (some incomplete)
-
 **If any checklist is incomplete**:
 - Display the status table
-- **ASK**: "Some checklists are incomplete. Do you want to proceed with implementation anyway? (yes/no)"
-- If user says "no", halt execution
-- If user says "yes", proceed to Step 3
+- **ASK**: "Some checklists are incomplete. Do you want to proceed anyway? (yes/no)"
+- If "no", halt execution
 
-**If all checklists pass or no checklists exist**: Proceed to Step 3
+### Step 5: Execute Tasks
 
-### Step 3: Parse Tasks by Component
+Based on agent type, spawn the appropriate subagent:
 
-Parse tasks.md and group tasks into:
+#### For API Agent
 
-```
-SHARED_SETUP_TASKS    = tasks with [SHARED] in Setup phase
-API_TASKS             = tasks with [API] marker
-CLI_TASKS_BY_STORY    = tasks with [CLI] marker, grouped by [US#]
-SRV_TASKS_BY_STORY    = tasks with [SRV] marker, grouped by [US#]
-SHARED_POLISH_TASKS   = tasks with [SHARED] in Polish phase
-```
+Execute setup and API tasks directly (no separate subagent needed for setup):
 
-Extract user stories in priority order (P1, P2, P3...) from task organization.
-
-### Step 4: Execute [SHARED] Setup Tasks
-
-Execute setup tasks **directly** (no subagent needed):
-
-For each task in SHARED_SETUP_TASKS:
-1. Execute the task
-2. Mark task as complete [X] in tasks.md
-3. Report progress
-
-### Step 5: Spawn API Subagent (BLOCKING)
-
-**⚠️ CRITICAL**: This step MUST complete before any Client or Server work begins.
+1. **Execute [SHARED] setup tasks** directly
+2. **Spawn API subagent** for contract tasks:
 
 ```bash
-claude --print "Execute these API tasks: [list API task IDs and descriptions]
+claude --print "Execute these API tasks:
 
 Context from plan.md:
 - Contract Location: [from plan.md API Subagent Context]
@@ -93,15 +151,13 @@ Context from plan.md:
 - Validation Command: [from plan.md]
 
 Tasks to execute:
-[formatted list of API_TASKS]
-
-IMPORTANT: Do NOT edit tasks.md directly. Instead, output a completion report at the end.
+[formatted list of API tasks from tasks-api.md]
 
 After completing all tasks, output this JSON report:
 \`\`\`json
 {
   \"agent\": \"api\",
-  \"completed\": [\"T004\", \"T005\", \"T006\"],
+  \"completed\": [\"T010\", \"T011\", \"T012\"],
   \"failed\": [],
   \"validation\": \"PASS\",
   \"notes\": \"Any relevant notes\"
@@ -111,20 +167,44 @@ After completing all tasks, output this JSON report:
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
-**WAIT** for API subagent to complete.
+3. **Parse JSON report** and update tasks-api.md
 
-**Orchestrator Action**: Parse the JSON completion report and update tasks.md:
-- For each task ID in `completed`: Change `- [ ]` to `- [X]`
-- For each task ID in `failed`: Leave as `- [ ]` and log the failure
-
-### Step 6: Execute User Stories (Client + Server in Parallel)
-
-For each user story in priority order (US1 → US2 → US3...):
-
-#### 6a. Spawn Client Subagent
+#### For Server Agent
 
 ```bash
-claude --print "Execute these Client tasks for User Story [US#]: [list CLI task IDs]
+claude --print "Execute these Server tasks:
+
+Context from plan.md:
+- Source Location: [from plan.md Server Subagent Context]
+- Test Location: [from plan.md]
+- Build Command: [from plan.md]
+- Test Command: [from plan.md]
+
+Pattern: Red (failing test) → Green (minimal code) → Refactor
+Constraint: Tests MUST fail first, then implement to pass
+
+Tasks to execute:
+[formatted list of tasks from tasks-server.md]
+
+After completing all tasks, output this JSON report:
+\`\`\`json
+{
+  \"agent\": \"server\",
+  \"completed\": [\"T200\", \"T201\", \"T202\"],
+  \"failed\": [],
+  \"build\": \"PASS\",
+  \"tests\": \"PASS\",
+  \"notes\": \"Any relevant notes\"
+}
+\`\`\`" \
+       --system-prompt "$(cat .specify/agents/server-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+#### For Client Agent
+
+```bash
+claude --print "Execute these Client tasks:
 
 Context from plan.md:
 - Source Location: [from plan.md Client Subagent Context]
@@ -137,19 +217,17 @@ Pattern: Create mock HTTP responses → Write failing integration test → Imple
 Constraint: ONLY mock at HTTP boundary (no internal service mocks)
 
 Tasks to execute:
-[formatted list of CLI_TASKS for this user story]
-
-IMPORTANT: Do NOT edit tasks.md directly. Instead, output a completion report at the end.
+[formatted list of tasks from tasks-client.md]
 
 After completing all tasks, output this JSON report:
 \`\`\`json
 {
   \"agent\": \"client\",
-  \"story\": \"US1\",
-  \"completed\": [\"T010\", \"T011\", \"T012\"],
+  \"completed\": [\"T100\", \"T101\", \"T102\"],
   \"failed\": [],
   \"build\": \"PASS\",
   \"tests\": \"PASS\",
+  \"common_ui_components_used\": [\"TextField\", \"Button\", \"Form\"],
   \"notes\": \"Any relevant notes\"
 }
 \`\`\`" \
@@ -157,254 +235,114 @@ After completing all tasks, output this JSON report:
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
-#### 6b. Spawn Server Subagent (IN PARALLEL with Client)
+### Step 6: Update Task File
 
-```bash
-claude --print "Execute these Server tasks for User Story [US#]: [list SRV task IDs]
+After subagent completes:
 
-Context from plan.md:
-- Source Location: [from plan.md Server Subagent Context]
-- Test Location: [from plan.md]
-- Build Command: [from plan.md]
-- Test Command: [from plan.md]
+1. **Parse JSON completion report** from subagent output
+2. **Update task file** (tasks-api.md, tasks-server.md, or tasks-client.md):
+   - For each task ID in `completed`: Change `- [ ]` to `- [X]`
+   - For each task ID in `failed`: Leave as `- [ ]` and add note
 
-Pattern: Red (failing test) → Green (minimal code) → Refactor
-Constraint: Tests MUST fail first, then implement to pass
+### Step 7: Final Report
 
-Tasks to execute:
-[formatted list of SRV_TASKS for this user story]
+Generate completion report:
 
-IMPORTANT: Do NOT edit tasks.md directly. Instead, output a completion report at the end.
-
-After completing all tasks, output this JSON report:
-\`\`\`json
-{
-  \"agent\": \"server\",
-  \"story\": \"US1\",
-  \"completed\": [\"T020\", \"T021\", \"T022\"],
-  \"failed\": [],
-  \"build\": \"PASS\",
-  \"tests\": \"PASS\",
-  \"notes\": \"Any relevant notes\"
-}
-\`\`\`" \
-       --system-prompt "$(cat .specify/agents/server-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
+═══════════════════════════════════════════════════════════════════════════════
+IMPLEMENTATION COMPLETE: [AGENT TYPE]
+═══════════════════════════════════════════════════════════════════════════════
 
-**WAIT** for BOTH Client and Server subagents to complete for this user story.
+Feature: [FEATURE_NAME]
+Agent: [api|server|client]
+Task File: [path to task file]
 
-**Orchestrator Action**: After BOTH agents complete, parse their JSON reports and update tasks.md ONCE:
-- Collect completed task IDs from both client and server reports
-- Update tasks.md: Change `- [ ]` to `- [X]` for all completed tasks
-- Log any failed tasks
+Tasks Completed: [X] of [Y]
+Tasks Failed: [list if any]
 
-**Checkpoint**: Verify User Story [US#] is complete:
-- All [CLI] [US#] tasks in completed arrays
-- All [SRV] [US#] tasks in completed arrays
-- Report: "User Story [US#] complete"
+Build Status: [PASS/FAIL/N/A]
+Test Status: [PASS/FAIL/N/A]
 
-#### 6c. Environment Validation Checkpoint
+═══════════════════════════════════════════════════════════════════════════════
 
-After each user story completes, spawn the Environment Validation Agent:
+Next Steps:
+[Suggest next action based on agent type]
 
-```bash
-claude --print "Validate environment for User Story [US#]
-
-Context from plan.md:
-- Server Start Command: [from plan.md]
-- Client Start Command: [from plan.md]
-- Server Port: [from plan.md]
-- Client Port: [from plan.md]
-
-Scenarios to validate from quickstart.md:
-[list relevant scenarios for this user story]
-
-IMPORTANT:
-- Run servers in BACKGROUND (do not block)
-- Use TIMEOUTS for all commands
-- ALWAYS clean up processes when done
-- You have FULL AUTONOMY to fix any issues found
-
-Output JSON completion report when done." \
-       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+For API: "Run /speckit.validate server to verify server environment"
+For Server: "Server implementation complete. Run /speckit.validate server"
+For Client: "Client implementation complete. Run /speckit.validate client"
+═══════════════════════════════════════════════════════════════════════════════
 ```
-
-**Orchestrator Action**: Parse the JSON report:
-- If `status: "PASS"` → proceed to next user story
-- If `status: "FAIL"` → halt and report issues
-- Log any `fixes_applied` for the completion report
-
-### Step 7: Execute [SHARED] Polish Tasks
-
-Execute polish tasks **directly** (no subagent needed):
-
-For each task in SHARED_POLISH_TASKS:
-1. Execute the task
-2. Mark task as complete [X] in tasks.md
-3. Report progress
-
-### Step 8: Final Environment Validation
-
-Before reporting completion, run final environment validation:
-
-```bash
-claude --print "Final environment validation for feature [FEATURE_NAME]
-
-Context from plan.md:
-- Server Start Command: [from plan.md]
-- Client Start Command: [from plan.md]
-- All ports and endpoints
-
-Run ALL scenarios from quickstart.md to verify complete system works.
-
-IMPORTANT:
-- Run servers in BACKGROUND (do not block)
-- Use TIMEOUTS for all commands
-- ALWAYS clean up processes when done
-- You have FULL AUTONOMY to fix any issues found
-
-This is the FINAL validation before deployment.
-Output JSON completion report when done." \
-       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
-```
-
-**If validation fails**: Halt and report - do not mark implementation as complete.
-
-### Step 9: Final Report
-
-1. **Verify all tasks complete**:
-   - Scan tasks.md for any remaining `[ ]` unchecked tasks
-   - If incomplete tasks found, report which tasks failed
-
-2. **Verify all validations passed**:
-   - All user story checkpoints: PASS
-   - Final environment validation: PASS
-
-3. **Generate completion report**:
-   ```
-   ═══════════════════════════════════════════════════════════
-   IMPLEMENTATION COMPLETE
-   ═══════════════════════════════════════════════════════════
-
-   Feature: [FEATURE_NAME]
-
-   Phases Completed:
-   ✓ Setup ([SHARED] tasks)
-   ✓ API Contracts ([API] tasks)
-   ✓ User Story 1 ([CLI] + [SRV] tasks)
-     └── Environment Validation: PASS
-   ✓ User Story 2 ([CLI] + [SRV] tasks)
-     └── Environment Validation: PASS
-   ...
-   ✓ Polish ([SHARED] tasks)
-   ✓ Final Environment Validation: PASS
-
-   Subagents Spawned:
-   - Checklist Agent: [PASS/FAIL/SKIPPED]
-   - API Agent: [X] tasks completed
-   - Client Agent: [X] tasks completed (per story)
-   - Server Agent: [X] tasks completed (per story)
-   - Environment Validation Agent: [X] checkpoints passed
-
-   Environment Validation:
-   - Server Starts: PASS
-   - API Endpoints: PASS
-   - Client Builds: PASS
-   - Integration: PASS
-
-   Fixes Applied by Environment Validation:
-   - [list any fixes applied during validation]
-
-   ═══════════════════════════════════════════════════════════
-   ```
 
 ---
 
-## Orchestrator Rules
+## Execution Order Reference
 
-### Execution Order (STRICT)
-
-```
-1. [SHARED] Setup → direct execution
-2. [API] Contracts → API subagent (BLOCKING)
-   └── MUST complete before step 3
-3. For each User Story:
-   ├── [CLI] tasks → Client subagent ─┐
-   └── [SRV] tasks → Server subagent ─┴── PARALLEL, wait for both
-   └── Environment Validation → verify real system works (can fix issues)
-4. [SHARED] Polish → direct execution
-5. Final Environment Validation → full system check before completion
-```
-
-### Subagent Constraints
-
-- **Never 2 subagents of same type simultaneously**
-- **Each subagent verifies code compiles before marking task complete**
-- **Subagents read plan.md for tech-specific commands**
-- **All subagent prompts include task list and context from plan.md**
-
-### Error Handling
-
-- If subagent fails: Report error, do NOT proceed to dependent phases
-- If compilation fails: Subagent must fix before marking task complete
-- If test fails unexpectedly: Report and pause for user decision
-- For [P] parallel tasks: If one fails, continue others, report failures at end
-
-### Task Tracking (Orchestrator Responsibility)
-
-**CRITICAL**: Only the orchestrator edits tasks.md - subagents NEVER edit it directly.
+The expected workflow is:
 
 ```
-Subagent Flow:
-1. Subagent executes tasks
-2. Subagent outputs JSON completion report
-3. Orchestrator parses JSON report
-4. Orchestrator updates tasks.md (single writer)
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. /speckit.implement api                                       │
+│                                                                 │
+│    ⚠️  MUST define contracts for ALL user stories:              │
+│    - Setup tasks (project structure, tooling)                   │
+│    - US1 contracts (endpoints, schemas)                         │
+│    - US2 contracts (endpoints, schemas)                         │
+│    - US3 contracts (endpoints, schemas)                         │
+│    - ... ALL stories in spec.md ...                             │
+│    - Type generation (shared/types/)                            │
+│                                                                 │
+│    This is a HARD GATE - no partial completion allowed          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. /speckit.validate server                                     │
+│    └── Verify server can build with generated types             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌──────────────────────────┐    ┌──────────────────────────┐
+│ 3a. /speckit.implement   │    │ 3b. /speckit.implement   │
+│     server               │    │     client               │
+│                          │    │                          │
+│ [Can run in parallel     │    │ [Can run in parallel     │
+│  in separate session]    │    │  in separate session]    │
+│                          │    │                          │
+│ Implements ALL stories   │    │ Implements ALL stories   │
+│ using pre-defined types  │    │ using pre-defined types  │
+└──────────────────────────┘    └──────────────────────────┘
+              │                               │
+              ▼                               ▼
+┌──────────────────────────┐    ┌──────────────────────────┐
+│ 4a. /speckit.validate    │    │ 4b. /speckit.validate    │
+│     server               │    │     client               │
+└──────────────────────────┘    └──────────────────────────┘
 ```
 
-**Update Pattern**:
-```
-After API subagent completes:
-  → Parse JSON → Update tasks.md with [API] tasks
-
-After BOTH Client + Server complete (per user story):
-  → Parse both JSON reports → Update tasks.md with [CLI] + [SRV] tasks
-  → Single atomic update avoids race conditions
-```
-
-- Progress updates after each phase
-- Final report summarizes all completed work
+**Why ALL API tasks first?**
+- Types must exist for all endpoints before any implementation
+- Client and Server need complete contracts to avoid rework
+- Prevents partial implementations that don't integrate
 
 ---
 
-## Subagent Spawning Reference
-
-### Claude CLI Syntax
-
-```bash
-claude --print "[PROMPT]" \
-       --system-prompt "$(cat .specify/agents/[agent-name].md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
-```
-
-### Available Subagents
+## Available Subagents
 
 | Agent | File | Purpose |
 |-------|------|---------|
-| checklist-agent | .specify/agents/checklist-agent.md | Verify checklists |
 | api-agent | .specify/agents/api-agent.md | API contracts, type generation |
 | client-agent | .specify/agents/client-agent.md | Frontend, integration tests |
 | server-agent | .specify/agents/server-agent.md | Backend, TDD unit tests |
-| environment-validation-agent | .specify/agents/environment-validation-agent.md | Verify real system works, fix issues |
+| checklist-agent | .specify/agents/checklist-agent.md | Verify checklists |
 
 ---
 
 ## Notes
 
-- This command requires tasks.md with component markers ([API], [CLI], [SRV], [SHARED])
-- If tasks are missing markers, suggest running `/speckit.tasks` to regenerate
-- Subagent system prompts are in `.specify/agents/` directory
-- Build/test commands come from plan.md "Build & Test Commands" section
+- Each session handles exactly ONE agent type
+- Server and Client can run in parallel (separate sessions/terminals)
+- API must complete before Server/Client can start
+- This design prevents race conditions on task files
+- Use `/speckit.validate` to run environment validation after implementation
