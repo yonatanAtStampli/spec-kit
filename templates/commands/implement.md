@@ -133,44 +133,65 @@ claude --print "Verify all checklists in FEATURE_DIR/checklists/ and report stat
 
 ### Step 5: Execute Tasks
 
+**⚠️ IMPORTANT**: You MUST spawn subagents using the Bash tool to run `claude` CLI commands. Do NOT execute the tasks yourself directly - delegate to the specialized subagent.
+
 Based on agent type, spawn the appropriate subagent:
 
 #### For API Agent
 
-Execute setup and API tasks directly (no separate subagent needed for setup):
+1. **Execute [SHARED] setup tasks** directly (these are simple setup, no subagent needed)
 
-1. **Execute [SHARED] setup tasks** directly
-2. **Spawn API subagent** for contract tasks:
+2. **SPAWN API SUBAGENT** - You MUST use the Bash tool to run this command:
 
-```bash
-claude --print "Execute these API tasks:
+   First, output this message to indicate subagent spawning:
+   ```
+   ═══════════════════════════════════════════════════════════════════════════════
+   SPAWNING API SUBAGENT
+   ═══════════════════════════════════════════════════════════════════════════════
+   ```
 
-Context from plan.md:
-- Contract Location: [from plan.md API Subagent Context]
-- Type Output: [from plan.md]
-- Validation Command: [from plan.md]
+   Then use the **Bash tool** to execute:
+   ```bash
+   claude --print "Execute these API tasks:
 
-Tasks to execute:
-[formatted list of API tasks from tasks-api.md]
+   Context from plan.md:
+   - Contract Location: [from plan.md API Subagent Context]
+   - Type Output: [from plan.md]
+   - Validation Command: [from plan.md]
 
-After completing all tasks, output this JSON report:
-\`\`\`json
-{
-  \"agent\": \"api\",
-  \"completed\": [\"T010\", \"T011\", \"T012\"],
-  \"failed\": [],
-  \"validation\": \"PASS\",
-  \"notes\": \"Any relevant notes\"
-}
-\`\`\`" \
-       --system-prompt "$(cat .specify/agents/api-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
-```
+   Tasks to execute:
+   [formatted list of API tasks from tasks-api.md]
 
-3. **Parse JSON report** and update tasks-api.md
+   After completing all tasks, output this JSON report:
+   \`\`\`json
+   {
+     \"agent\": \"api\",
+     \"completed\": [\"T010\", \"T011\", \"T012\"],
+     \"failed\": [],
+     \"validation\": \"PASS\",
+     \"notes\": \"Any relevant notes\"
+   }
+   \`\`\`" \
+          --system-prompt "$(cat .specify/agents/api-agent.md)" \
+          --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+   ```
+
+   **DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
+
+3. **Parse JSON report** from subagent output and update tasks-api.md
 
 #### For Server Agent
 
+**SPAWN SERVER SUBAGENT** - You MUST use the Bash tool to run this command:
+
+First, output this message:
+```
+═══════════════════════════════════════════════════════════════════════════════
+SPAWNING SERVER SUBAGENT
+═══════════════════════════════════════════════════════════════════════════════
+```
+
+Then use the **Bash tool** to execute:
 ```bash
 claude --print "Execute these Server tasks:
 
@@ -190,7 +211,7 @@ After completing all tasks, output this JSON report:
 \`\`\`json
 {
   \"agent\": \"server\",
-  \"completed\": [\"T200\", \"T201\", \"T202\"],
+  \"completed\": [\"T600\", \"T601\", \"T602\"],
   \"failed\": [],
   \"build\": \"PASS\",
   \"tests\": \"PASS\",
@@ -201,8 +222,20 @@ After completing all tasks, output this JSON report:
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
+**DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
+
 #### For Client Agent
 
+**SPAWN CLIENT SUBAGENT** - You MUST use the Bash tool to run this command:
+
+First, output this message:
+```
+═══════════════════════════════════════════════════════════════════════════════
+SPAWNING CLIENT SUBAGENT
+═══════════════════════════════════════════════════════════════════════════════
+```
+
+Then use the **Bash tool** to execute:
 ```bash
 claude --print "Execute these Client tasks:
 
@@ -223,7 +256,7 @@ After completing all tasks, output this JSON report:
 \`\`\`json
 {
   \"agent\": \"client\",
-  \"completed\": [\"T100\", \"T101\", \"T102\"],
+  \"completed\": [\"T300\", \"T301\", \"T302\"],
   \"failed\": [],
   \"build\": \"PASS\",
   \"tests\": \"PASS\",
@@ -234,6 +267,8 @@ After completing all tasks, output this JSON report:
        --system-prompt "$(cat .specify/agents/client-agent.md)" \
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
+
+**DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
 
 ### Step 6: Update Task File
 
