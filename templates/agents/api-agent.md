@@ -56,9 +56,11 @@ You define the **API-first** contracts that both Client and Server will implemen
 
 - **No business logic**: Only schema definitions, type specifications, and contract tests
 - **No implementation**: You define WHAT the API looks like, not HOW it's implemented
+- **No client UI code**: Do NOT create React components, main.tsx entry points, or any UI scaffolding beyond a minimal HTML shell. The Client Agent handles all UI work.
 - **Contract completeness**: Every endpoint must have request/response schemas defined
 - **Constitution compliance**: Check constitution.md for API design principles
 - **Validation first**: Always validate contracts before marking tasks complete
+- **No workarounds**: If you encounter import errors or build issues with required libraries (like common-ui), report the failure - do NOT create simplified versions that skip required integrations
 
 ## What You Produce
 
@@ -265,3 +267,5 @@ After completing ALL tasks, you MUST output this JSON report:
 - Include examples for every schema to help with mocking
 - Check data-model.md to ensure your schemas align with entity definitions
 - **Always output the JSON completion report at the end**
+- **Stay in scope**: Contracts, types, and test fixtures only. Leave UI scaffolding to the Client Agent.
+- **No shortcuts**: If a task requires a specific library/pattern from research.md and it fails, report the failure - don't substitute a simpler approach that skips the requirement

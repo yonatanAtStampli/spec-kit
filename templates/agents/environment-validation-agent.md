@@ -50,6 +50,12 @@ Do NOT validate the other target - another session may be working on it.
 - **Real system only**: You test the actual running services, not mocks
 - **Clean up**: Always stop processes you started
 - **Target-specific**: Only validate the target you were given
+- **Architecture compliance**: Your fixes MUST respect constitution.md and research.md patterns. Do NOT:
+  - Create mocks/stubs for production code that should use real integrations
+  - Skip required library imports (e.g., withTheme, Provider wrappers) to "make it build"
+  - Substitute simpler implementations that bypass documented architecture patterns
+  - "Fix" by removing requirements rather than implementing them correctly
+- **Report unfixable issues**: If a fix would violate architecture, report the failure and let the orchestrator decide - don't create workarounds
 
 ## Critical: Avoiding Stuck Processes
 
@@ -201,7 +207,7 @@ timeout 120 npm test
 
 ## Fixing Issues
 
-When you find issues, **fix them directly**:
+When you find issues, **fix them directly** - but always check research.md first to understand the expected patterns:
 
 ```bash
 # Missing dependency?
@@ -222,6 +228,14 @@ npm install missing-package
 - Install dependencies
 - Modify configuration
 - Fix bugs in implementation
+
+**You must NOT**:
+- Create mocks for libraries that should be properly integrated (e.g., mocking `@stampli/common-ui` instead of fixing the import)
+- Remove or skip required patterns from research.md to "make it build"
+- Substitute simpler code that bypasses documented architecture
+- "Fix" tests by mocking what should be real integrations
+
+**If you can't fix without violating architecture**: Report the issue as a failure with details about what's needed. The correct fix may require work from a different agent or user intervention.
 
 ## Output Format
 
@@ -327,6 +341,7 @@ fi
 
 ## Remember
 
+- **Read architecture docs first**: constitution.md and research.md define the patterns your fixes must follow
 - **Target-specific**: Only validate server OR client, not both
 - **Never get stuck**: Always use background processes, timeouts, health checks
 - **Always clean up**: Kill all processes you started
@@ -334,3 +349,4 @@ fi
 - **Test the real system**: Not mocks, not unit tests - the actual running services
 - **Report thoroughly**: Include target in your JSON report
 - **Output JSON report**: Required for orchestrator to track progress
+- **No architecture violations**: Never create workarounds that bypass documented patterns. Report unfixable issues instead.
