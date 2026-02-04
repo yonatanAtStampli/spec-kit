@@ -170,7 +170,7 @@ Tasks: T001, T002, T003, T004, T005
 
 **B. Write the prompt to a temp file** (avoids shell escaping issues):
 
-Use the Write tool to create `.specify/tmp/subagent-prompt.txt` with:
+Use the Write tool to create `.specify/tmp/[agent-type]-prompt.txt` (e.g., `api-prompt.txt`, `server-prompt.txt`, `client-prompt.txt`) with:
 ```
 You are executing a chunk of [AGENT_TYPE] tasks.
 
@@ -207,8 +207,15 @@ After completing ALL tasks in this chunk, output this JSON:
 
 Use the **Bash tool** with **timeout: 1800000** (30 minutes):
 ```bash
-claude --print "$(cat .specify/tmp/subagent-prompt.txt)" \
+claude --print "$(cat .specify/tmp/[agent-type]-prompt.txt)" \
        --system-prompt "$(cat .specify/agents/[agent-type]-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+**Example for client agent**:
+```bash
+claude --print "$(cat .specify/tmp/client-prompt.txt)" \
+       --system-prompt "$(cat .specify/agents/client-agent.md)" \
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
