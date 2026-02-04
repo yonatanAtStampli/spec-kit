@@ -272,12 +272,36 @@ After completing all tasks, output this JSON report:
 
 ### Step 6: Update Task File
 
-After subagent completes:
+**⚠️ CRITICAL**: After the subagent completes, YOU (the orchestrator) MUST mark tasks as complete.
 
-1. **Parse JSON completion report** from subagent output
-2. **Update task file** (tasks-api.md, tasks-server.md, or tasks-client.md):
-   - For each task ID in `completed`: Change `- [ ]` to `- [X]`
-   - For each task ID in `failed`: Leave as `- [ ]` and add note
+1. **Capture the subagent output** - The Bash tool returns the subagent's output including the JSON report
+
+2. **Find the JSON completion report** in the output - Look for:
+   ```json
+   {
+     "agent": "api",
+     "completed": ["T001", "T010", "T011"],
+     ...
+   }
+   ```
+
+3. **Use the Edit tool to mark each completed task** in the task file:
+
+   For EACH task ID in the `completed` array, use the Edit tool:
+   ```
+   Edit task file:
+   - old_string: "- [ ] T001"
+   - new_string: "- [X] T001"
+   ```
+
+   **Example**: If subagent reports `"completed": ["T001", "T010", "T020"]`, you must make 3 Edit calls:
+   - Edit: `- [ ] T001` → `- [X] T001`
+   - Edit: `- [ ] T010` → `- [X] T010`
+   - Edit: `- [ ] T020` → `- [X] T020`
+
+4. **For failed tasks**: Leave as `- [ ]` but add a note below the task line
+
+**DO NOT** skip this step. The task file must reflect completed work.
 
 ### Step 7: Final Report
 
