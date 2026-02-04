@@ -64,10 +64,14 @@ Parse `$ARGUMENTS` and validate:
    - **REQUIRED**: Read quickstart.md for integration scenarios
    - **IF EXISTS**: Read contracts/api.yaml for expected endpoints
 
-### Step 3: Spawn Environment Validation Agent
+### Step 3: Write Prompt to Temp File
 
-```bash
-claude --print "Validate [TARGET] environment
+**Write the prompt to a unique temp file** (avoids shell escaping issues):
+
+Use the Write tool to create `.specify/tmp/validate-[target]-prompt.txt` (e.g., `validate-server-prompt.txt` or `validate-client-prompt.txt`) with:
+
+```
+Validate [TARGET] environment
 
 Target: [server|client]
 
@@ -94,12 +98,36 @@ IMPORTANT:
 - ALWAYS clean up processes when done
 - You have FULL AUTONOMY to fix any issues found
 
-Output JSON completion report when done." \
+Output JSON completion report when done.
+```
+
+### Step 4: Spawn Environment Validation Agent
+
+**⚠️ MANDATORY**: You MUST use the Bash tool to invoke the `claude` CLI. Do NOT skip this step or try to validate directly.
+
+Use the **Bash tool** with **timeout: 1800000** (30 minutes):
+
+```bash
+claude --print "$(cat .specify/tmp/validate-[target]-prompt.txt)" \
        --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
        --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
-### Step 4: Process Results
+**Example for server**:
+```bash
+claude --print "$(cat .specify/tmp/validate-server-prompt.txt)" \
+       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+**Example for client**:
+```bash
+claude --print "$(cat .specify/tmp/validate-client-prompt.txt)" \
+       --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
+
+### Step 5: Process Results
 
 Parse the JSON completion report from the agent:
 

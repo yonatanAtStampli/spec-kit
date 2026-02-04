@@ -264,53 +264,137 @@ Constraint: ONLY mock at HTTP boundary (no internal service mocks)
 Use common-ui components from .specify/common-ui.md
 ```
 
-### Step 6: Update Task File (After EACH Chunk)
+### Step 6: Process Results and Resolve Failures (Autonomous Retry Loop)
 
-**⚠️ CRITICAL**: After EACH subagent chunk completes, YOU (the orchestrator) MUST mark tasks as complete BEFORE starting the next chunk.
+**⚠️ CRITICAL**: After EACH subagent completes, process results and resolve failures BEFORE moving to next chunk. The orchestrator should work through problems autonomously, only asking the user when truly stuck.
 
-This ensures:
-- Incremental progress is saved
-- If something fails, completed work is preserved
-- You can see progress in the task file
+#### 6.1: Parse Subagent Output
 
-1. **Capture the subagent output** - The Bash tool returns the subagent's output including the JSON report
+1. **Capture the subagent output** - The Bash tool returns output including the JSON report
 
-2. **Find the JSON completion report** in the output - Look for:
+2. **Find the JSON completion report**:
    ```json
    {
      "agent": "api",
      "chunk": 1,
      "completed": ["T001", "T002", "T003"],
-     ...
+     "failed": ["T004"],
+     "notes": "T004 failed due to missing dependency..."
    }
    ```
 
-3. **Use the Edit tool to mark each completed task** in the task file:
+3. **Mark completed tasks** using the Edit tool:
+   - For EACH task ID in `completed` array: `- [ ] T001` → `- [X] T001`
 
-   For EACH task ID in the `completed` array, use the Edit tool:
+#### 6.2: Autonomous Failure Resolution
+
+**If there are failed tasks**, enter the retry loop. Do NOT ask the user unless you reach a dead-end.
+
+**Track retry state**:
+- `failed_tasks`: List of task IDs that failed
+- `retry_count`: Number of retry attempts for current chunk (max 3)
+- `last_failed_count`: Number of failed tasks before this attempt
+
+**Retry Loop** (repeat until resolved or dead-end):
+
+1. **Analyze failure type** from subagent `notes`:
+
+   **Environment-related failures**:
+   - Build/compilation errors
+   - Missing dependencies or packages
+   - Type errors from contracts
+   - Module not found
+   - Port conflicts
+   - Process startup failures
+
+   **Implementation failures**:
+   - Logic errors
+   - Test assertion failures
+   - Missing function implementations
+
+2. **If environment-related**, run environment validation first:
+
    ```
-   Edit task file:
-   - old_string: "- [ ] T001"
-   - new_string: "- [X] T001"
+   ═══════════════════════════════════════════════════════════════════════════════
+   ENVIRONMENT ISSUE DETECTED - Attempting automatic fix
+   Issue: [from notes]
+   ═══════════════════════════════════════════════════════════════════════════════
    ```
 
-   **Example**: If subagent reports `"completed": ["T001", "T002", "T003"]`, make 3 Edit calls:
-   - Edit: `- [ ] T001` → `- [X] T001`
-   - Edit: `- [ ] T002` → `- [X] T002`
-   - Edit: `- [ ] T003` → `- [X] T003`
+   a. Write prompt to `.specify/tmp/validate-[target]-prompt.txt`:
+      - For `api` or `server` agent → `validate-server-prompt.txt`
+      - For `client` agent → `validate-client-prompt.txt`
 
-4. **For failed tasks**: Leave as `- [ ]` but add a note below the task line
-
-5. **Report chunk completion**:
+   b. Spawn environment validation agent (Bash tool, timeout: 1800000):
+   ```bash
+   claude --print "$(cat .specify/tmp/validate-[target]-prompt.txt)" \
+          --system-prompt "$(cat .specify/agents/environment-validation-agent.md)" \
+          --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
    ```
-   ✓ Chunk [N] complete: [X] tasks done, [Y] failed
+
+3. **Retry failed tasks** with implementation subagent:
+
+   ```
+   ═══════════════════════════════════════════════════════════════════════════════
+   RETRYING FAILED TASKS (Attempt [retry_count]/3)
+   Tasks: [list failed task IDs]
+   ═══════════════════════════════════════════════════════════════════════════════
    ```
 
-6. **Continue to next chunk** - Go back to Step 5.2 for the next chunk
+   a. Write retry prompt to `.specify/tmp/[agent-type]-prompt.txt` with ONLY the failed tasks
+   b. Spawn implementation subagent (same as Step 5.2 C)
+   c. Parse results, mark any newly completed tasks
+   d. Update `failed_tasks` list
 
-**DO NOT** skip this step. The task file must reflect completed work after EACH chunk.
+4. **Check for progress**:
+   - If `failed_tasks` is empty → **SUCCESS**, continue to next chunk
+   - If fewer tasks failed than `last_failed_count` → **PROGRESS**, continue retry loop
+   - If same tasks keep failing after 3 attempts → **DEAD-END**, see below
 
-### Step 7: Final Report (After ALL Chunks Complete)
+5. **Check for dependency issues**:
+   - If failure notes mention "requires X which is in later task" or similar
+   - If task depends on code/types not yet implemented
+   → **Note the dependency**, continue to next chunk (will resolve later)
+
+#### 6.3: Dead-End Handling (Only Time to Ask User)
+
+A dead-end is reached when:
+- Same tasks fail 3 times with no progress
+- Environment validation failed AND retry failed
+- Subagent explicitly reports "cannot proceed without user input"
+
+**Only then**, ask the user:
+```
+═══════════════════════════════════════════════════════════════════════════════
+STUCK: Unable to resolve [N] failed tasks after [retry_count] attempts
+═══════════════════════════════════════════════════════════════════════════════
+
+Failed tasks:
+- [ ] T004: [description] - Error: [error message]
+
+Attempted fixes:
+1. [list what was tried]
+
+Options:
+1. Skip these tasks and continue to next chunk
+2. Stop implementation (go to final report)
+3. Provide guidance (describe what to try)
+═══════════════════════════════════════════════════════════════════════════════
+```
+
+#### 6.4: Report and Continue
+
+After chunk is resolved (or user chooses to skip):
+
+```
+✓ Chunk [N] complete: [X] tasks done, [Y] skipped/failed
+```
+
+**Continue to next chunk** - Go back to Step 5.2 for the next chunk.
+
+**DO NOT** skip this step. Work through problems autonomously before moving on.
+
+### Step 7: Final Report (After ALL Chunks Complete or User Stops)
 
 After all chunks have been processed, generate final completion report:
 
