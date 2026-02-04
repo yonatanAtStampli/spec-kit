@@ -131,70 +131,108 @@ claude --print "Verify all checklists in FEATURE_DIR/checklists/ and report stat
 - **ASK**: "Some checklists are incomplete. Do you want to proceed anyway? (yes/no)"
 - If "no", halt execution
 
-### Step 5: Execute Tasks
+### Step 5: Execute Tasks (Chunked Subagent Pattern)
 
-**⚠️ IMPORTANT**: You MUST spawn subagents using the Bash tool to run `claude` CLI commands. Do NOT execute the tasks yourself directly - delegate to the specialized subagent.
+**⚠️ IMPORTANT**: To preserve context and enable incremental progress, tasks are executed in CHUNKS using subagents.
 
-Based on agent type, spawn the appropriate subagent:
+**Chunking Rules**:
+- Group tasks by User Story (US1, US2, US3...)
+- Within each story, create chunks of **maximum 5 tasks**
+- Spawn ONE subagent per chunk
+- Mark tasks complete after EACH chunk before continuing
+- Use **30 minute timeout** for each subagent (tasks can take time)
 
-#### For API Agent
+#### Step 5.1: Parse and Chunk Tasks
 
-1. **Execute [SHARED] setup tasks** directly (these are simple setup, no subagent needed)
+1. **Read the task file** and extract all incomplete tasks (lines with `- [ ]`)
+2. **Group by User Story**: Tasks with `[US1]`, `[US2]`, etc.
+   - Tasks without a story marker go in a "Setup" group
+3. **Chunk each group** into batches of max 5 tasks
 
-2. **SPAWN API SUBAGENT** - You MUST use the Bash tool to run this command:
+**Example chunking**:
+```
+Setup tasks (no [US#]):     [T001, T002, T003] → Chunk 1 (3 tasks)
+US1 tasks (12 total):       [T010-T014] → Chunk 2, [T015-T019] → Chunk 3, [T020-T021] → Chunk 4
+US2 tasks (8 total):        [T030-T034] → Chunk 5, [T035-T037] → Chunk 6
+```
 
-   First, output this message to indicate subagent spawning:
-   ```
-   ═══════════════════════════════════════════════════════════════════════════════
-   SPAWNING API SUBAGENT
-   ═══════════════════════════════════════════════════════════════════════════════
-   ```
+#### Step 5.2: Execute Each Chunk
 
-   Then use the **Bash tool** to execute:
-   ```bash
-   claude --print "Execute these API tasks:
+For EACH chunk, follow this pattern:
 
-   Context from plan.md:
-   - Contract Location: [from plan.md API Subagent Context]
-   - Type Output: [from plan.md]
-   - Validation Command: [from plan.md]
-
-   Tasks to execute:
-   [formatted list of API tasks from tasks-api.md]
-
-   After completing all tasks, output this JSON report:
-   \`\`\`json
-   {
-     \"agent\": \"api\",
-     \"completed\": [\"T010\", \"T011\", \"T012\"],
-     \"failed\": [],
-     \"validation\": \"PASS\",
-     \"notes\": \"Any relevant notes\"
-   }
-   \`\`\`" \
-          --system-prompt "$(cat .specify/agents/api-agent.md)" \
-          --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
-   ```
-
-   **DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
-
-3. **Parse JSON report** from subagent output and update tasks-api.md
-
-#### For Server Agent
-
-**SPAWN SERVER SUBAGENT** - You MUST use the Bash tool to run this command:
-
-First, output this message:
+**A. Announce the chunk**:
 ```
 ═══════════════════════════════════════════════════════════════════════════════
-SPAWNING SERVER SUBAGENT
+CHUNK [N] of [TOTAL]: [Story Name] ([X] tasks)
+Tasks: T001, T002, T003, T004, T005
 ═══════════════════════════════════════════════════════════════════════════════
 ```
 
-Then use the **Bash tool** to execute:
+**B. Write the prompt to a temp file** (avoids shell escaping issues):
+
+Use the Write tool to create `.specify/tmp/subagent-prompt.txt` with:
+```
+You are executing a chunk of [AGENT_TYPE] tasks.
+
+Context from plan.md:
+- [Include relevant context for this agent type]
+
+Tasks to execute (THIS CHUNK ONLY):
+- [ ] T001 [Description from task file]
+- [ ] T002 [Description from task file]
+- [ ] T003 [Description from task file]
+- [ ] T004 [Description from task file]
+- [ ] T005 [Description from task file]
+
+Instructions:
+1. Execute each task in order
+2. Verify each task is complete before moving to next
+3. Run build/test commands after implementation tasks
+
+After completing ALL tasks in this chunk, output this JSON:
+```json
+{
+  "agent": "[api|server|client]",
+  "chunk": [N],
+  "completed": ["T001", "T002", "T003", "T004", "T005"],
+  "failed": [],
+  "build": "PASS",
+  "tests": "PASS",
+  "notes": "Any issues or observations"
+}
+```
+```
+
+**C. Spawn subagent with extended timeout**:
+
+Use the **Bash tool** with **timeout: 1800000** (30 minutes):
 ```bash
-claude --print "Execute these Server tasks:
+claude --print "$(cat .specify/tmp/subagent-prompt.txt)" \
+       --system-prompt "$(cat .specify/agents/[agent-type]-agent.md)" \
+       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+```
 
+**D. Parse JSON and mark tasks complete** (see Step 6)
+
+**E. Continue to next chunk** - Repeat B-D for each chunk
+
+#### Agent-Specific Context
+
+Include this context in the prompt based on agent type:
+
+**For API Agent**:
+```
+Context from plan.md:
+- Contract Location: [from plan.md API Subagent Context]
+- Type Output: [from plan.md]
+- Validation Command: [from plan.md]
+
+Pattern: Define schemas → Generate types → Create examples
+Constraint: No business logic, schema definitions only
+```
+
+**For Server Agent**:
+```
 Context from plan.md:
 - Source Location: [from plan.md Server Subagent Context]
 - Test Location: [from plan.md]
@@ -203,42 +241,10 @@ Context from plan.md:
 
 Pattern: Red (failing test) → Green (minimal code) → Refactor
 Constraint: Tests MUST fail first, then implement to pass
-
-Tasks to execute:
-[formatted list of tasks from tasks-server.md]
-
-After completing all tasks, output this JSON report:
-\`\`\`json
-{
-  \"agent\": \"server\",
-  \"completed\": [\"T600\", \"T601\", \"T602\"],
-  \"failed\": [],
-  \"build\": \"PASS\",
-  \"tests\": \"PASS\",
-  \"notes\": \"Any relevant notes\"
-}
-\`\`\`" \
-       --system-prompt "$(cat .specify/agents/server-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
 ```
 
-**DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
-
-#### For Client Agent
-
-**SPAWN CLIENT SUBAGENT** - You MUST use the Bash tool to run this command:
-
-First, output this message:
+**For Client Agent**:
 ```
-═══════════════════════════════════════════════════════════════════════════════
-SPAWNING CLIENT SUBAGENT
-═══════════════════════════════════════════════════════════════════════════════
-```
-
-Then use the **Bash tool** to execute:
-```bash
-claude --print "Execute these Client tasks:
-
 Context from plan.md:
 - Source Location: [from plan.md Client Subagent Context]
 - Test Location: [from plan.md]
@@ -248,31 +254,17 @@ Context from plan.md:
 
 Pattern: Create mock HTTP responses → Write failing integration test → Implement client code
 Constraint: ONLY mock at HTTP boundary (no internal service mocks)
-
-Tasks to execute:
-[formatted list of tasks from tasks-client.md]
-
-After completing all tasks, output this JSON report:
-\`\`\`json
-{
-  \"agent\": \"client\",
-  \"completed\": [\"T300\", \"T301\", \"T302\"],
-  \"failed\": [],
-  \"build\": \"PASS\",
-  \"tests\": \"PASS\",
-  \"common_ui_components_used\": [\"TextField\", \"Button\", \"Form\"],
-  \"notes\": \"Any relevant notes\"
-}
-\`\`\`" \
-       --system-prompt "$(cat .specify/agents/client-agent.md)" \
-       --allowedTools "Read,Write,Edit,Bash,Glob,Grep"
+Use common-ui components from .specify/common-ui.md
 ```
 
-**DO NOT** skip the Bash tool call. The subagent handles the actual implementation work.
+### Step 6: Update Task File (After EACH Chunk)
 
-### Step 6: Update Task File
+**⚠️ CRITICAL**: After EACH subagent chunk completes, YOU (the orchestrator) MUST mark tasks as complete BEFORE starting the next chunk.
 
-**⚠️ CRITICAL**: After the subagent completes, YOU (the orchestrator) MUST mark tasks as complete.
+This ensures:
+- Incremental progress is saved
+- If something fails, completed work is preserved
+- You can see progress in the task file
 
 1. **Capture the subagent output** - The Bash tool returns the subagent's output including the JSON report
 
@@ -280,7 +272,8 @@ After completing all tasks, output this JSON report:
    ```json
    {
      "agent": "api",
-     "completed": ["T001", "T010", "T011"],
+     "chunk": 1,
+     "completed": ["T001", "T002", "T003"],
      ...
    }
    ```
@@ -294,18 +287,25 @@ After completing all tasks, output this JSON report:
    - new_string: "- [X] T001"
    ```
 
-   **Example**: If subagent reports `"completed": ["T001", "T010", "T020"]`, you must make 3 Edit calls:
+   **Example**: If subagent reports `"completed": ["T001", "T002", "T003"]`, make 3 Edit calls:
    - Edit: `- [ ] T001` → `- [X] T001`
-   - Edit: `- [ ] T010` → `- [X] T010`
-   - Edit: `- [ ] T020` → `- [X] T020`
+   - Edit: `- [ ] T002` → `- [X] T002`
+   - Edit: `- [ ] T003` → `- [X] T003`
 
 4. **For failed tasks**: Leave as `- [ ]` but add a note below the task line
 
-**DO NOT** skip this step. The task file must reflect completed work.
+5. **Report chunk completion**:
+   ```
+   ✓ Chunk [N] complete: [X] tasks done, [Y] failed
+   ```
 
-### Step 7: Final Report
+6. **Continue to next chunk** - Go back to Step 5.2 for the next chunk
 
-Generate completion report:
+**DO NOT** skip this step. The task file must reflect completed work after EACH chunk.
+
+### Step 7: Final Report (After ALL Chunks Complete)
+
+After all chunks have been processed, generate final completion report:
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════
@@ -316,11 +316,19 @@ Feature: [FEATURE_NAME]
 Agent: [api|server|client]
 Task File: [path to task file]
 
-Tasks Completed: [X] of [Y]
+Chunks Processed: [N] chunks
+Tasks Completed: [X] of [Y] total
 Tasks Failed: [list if any]
 
 Build Status: [PASS/FAIL/N/A]
 Test Status: [PASS/FAIL/N/A]
+
+Chunk Summary:
+  ✓ Chunk 1 (Setup): 3 tasks
+  ✓ Chunk 2 (US1): 5 tasks
+  ✓ Chunk 3 (US1): 5 tasks
+  ✓ Chunk 4 (US2): 4 tasks
+  ...
 
 ═══════════════════════════════════════════════════════════════════════════════
 
